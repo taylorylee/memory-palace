@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memory Palace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+```
+:root {
+  --bg:        #0d0b09;
+  --surface:   #161210;
+  --border:    #2a2320;
+  --amber:     #c8853a;
+  --amber-dim: #7a4e22;
+  --cream:     #e8dfc8;
+  --muted:     #6b5e50;
+  --font-serif: 'IM Fell English', Georgia, serif;
+  --font-mono:  'DM Mono', monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--cream);
+  font-family: var(--font-serif);
+  overflow: hidden;
+}
+
+/* ── grain overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── vignette ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.7) 100%);
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ── LANDING ── */
+#landing {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  z-index: 10;
+}
+#landing.hidden {
+  opacity: 0;
+  transform: translateY(-24px);
+  pointer-events: none;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 20px;
+  opacity: 0;
+  animation: fadeUp 1s 0.2s forwards;
+}
+
+h1 {
+  font-size: clamp(52px, 8vw, 96px);
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: -0.02em;
+  color: var(--cream);
+  opacity: 0;
+  animation: fadeUp 1s 0.4s forwards;
+}
+h1 em {
+  font-style: italic;
+  color: var(--amber);
+}
+
+.subtitle {
+  margin-top: 20px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-align: center;
+  line-height: 1.8;
+  max-width: 380px;
+  opacity: 0;
+  animation: fadeUp 1s 0.6s forwards;
+}
+
+/* ── upload zone ── */
+#upload-zone {
+  margin-top: 52px;
+  width: 360px;
+  height: 200px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s, background 0.3s;
+  opacity: 0;
+  animation: fadeUp 1s 0.8s forwards;
+}
+#upload-zone:hover, #upload-zone.drag-over {
+  border-color: var(--amber-dim);
+  background: rgba(200, 133, 58, 0.04);
+}
+#upload-zone .upload-icon {
+  width: 32px; height: 32px;
+  opacity: 0.35;
+  stroke: var(--amber);
+}
+#upload-zone .upload-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-align: center;
+}
+#upload-zone .upload-label span {
+  color: var(--amber);
+  text-decoration: underline;
+  text-decoration-color: var(--amber-dim);
+  cursor: pointer;
+}
+#file-input { display: none; }
+
+/* thumbnail preview in upload zone */
+#upload-preview {
+  position: absolute; inset: 0;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+#upload-preview.visible { opacity: 0.4; }
+
+.upload-overlay-label {
+  position: relative; z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--cream);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+#upload-zone.has-image .upload-overlay-label { opacity: 1; }
+#upload-zone.has-image .upload-icon { opacity: 0; }
+#upload-zone.has-image .upload-label { opacity: 0; }
+
+#submit-btn {
+  margin-top: 20px;
+  padding: 13px 40px;
+  background: transparent;
+  border: 1px solid var(--amber-dim);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.3s, border-color 0.3s, color 0.3s;
+  opacity: 0;
+  animation: fadeUp 1s 1s forwards;
+  border-radius: 1px;
+}
+#submit-btn:hover:not(:disabled) {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--bg);
+}
+#submit-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── PROCESSING SCREEN ── */
+#processing {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s;
+  z-index: 10;
+}
+#processing.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.processing-image-wrap {
+  width: 280px; height: 180px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.processing-image-wrap img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: sepia(0.4) brightness(0.7);
+}
+/* scan line animation */
+.processing-image-wrap::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  animation: scan 2s ease-in-out infinite;
+  top: 0;
+}
+@keyframes scan {
+  0%   { top: 0%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.processing-log {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-align: center;
+  line-height: 2;
+}
+.processing-log .active {
+  color: var(--amber);
+}
+
+/* ── VIEWER ── */
+#viewer {
+  position: fixed; inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s ease;
+  z-index: 5;
+}
+#viewer.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#splat-canvas {
+  width: 100%; height: 100%;
+  display: block;
+  cursor: grab;
+}
+#splat-canvas:active { cursor: grabbing; }
+
+/* ── HUD ── */
+#hud {
+  position: fixed;
+  bottom: 36px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 20px; align-items: center;
+  opacity: 0;
+  transition: opacity 0.6s 1.5s;
+  z-index: 20;
+  pointer-events: none;
+}
+#hud.visible { opacity: 1; pointer-events: auto; }
+
+.hud-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.hud-divider {
+  width: 1px; height: 20px;
+  background: var(--border);
+}
+
+#hud-btn {
+  padding: 9px 22px;
+  background: rgba(13,11,9,0.8);
+  border: 1px solid var(--border);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  pointer-events: auto;
+}
+#hud-btn:hover { border-color: var(--amber-dim); }
+
+/* ── title in viewer ── */
+#viewer-title {
+  position: fixed;
+  top: 36px; left: 48px;
+  opacity: 0;
+  transition: opacity 0.6s 1.5s;
+  z-index: 20;
+}
+#viewer-title.visible { opacity: 1; }
+#viewer-title .vt-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--amber);
+  text-transform: uppercase;
+}
+#viewer-title .vt-name {
+  font-size: 22px;
+  font-style: italic;
+  color: var(--cream);
+  margin-top: 4px;
+}
+
+/* ── audio indicator ── */
+#audio-indicator {
+  position: fixed;
+  top: 36px; right: 48px;
+  display: flex; align-items: center; gap: 8px;
+  opacity: 0;
+  transition: opacity 0.6s 2s;
+  z-index: 20;
+  cursor: pointer;
+}
+#audio-indicator.visible { opacity: 1; }
+.audio-bars {
+  display: flex; gap: 2px; align-items: flex-end; height: 14px;
+}
+.audio-bar {
+  width: 2px;
+  background: var(--amber-dim);
+  border-radius: 1px;
+  animation: audioBar 1.2s ease-in-out infinite;
+}
+.audio-bar:nth-child(1) { height: 4px;  animation-delay: 0s; }
+.audio-bar:nth-child(2) { height: 10px; animation-delay: 0.2s; }
+.audio-bar:nth-child(3) { height: 6px;  animation-delay: 0.4s; }
+.audio-bar:nth-child(4) { height: 12px; animation-delay: 0.1s; }
+.audio-bar:nth-child(5) { height: 5px;  animation-delay: 0.3s; }
+.audio-bars.paused .audio-bar { animation-play-state: paused; }
+@keyframes audioBar {
+  0%, 100% { transform: scaleY(0.4); }
+  50%       { transform: scaleY(1); }
+}
+.audio-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/* ── share toast ── */
+#share-toast {
+  position: fixed;
+  bottom: 80px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 10px 24px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--amber);
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 100;
+  pointer-events: none;
+}
+#share-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── error ── */
+#error-banner {
+  position: fixed;
+  top: 20px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(180, 60, 40, 0.15);
+  border: 1px solid rgba(180, 60, 40, 0.4);
+  padding: 10px 24px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #e07060;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 200;
+  pointer-events: none;
+  max-width: 500px;
+  text-align: center;
+}
+#error-banner.show { opacity: 1; }
+```
+
+  </style>
+</head>
+<body>
+
+<!-- ── LANDING ── -->
+
+<div id="landing">
+  <p class="eyebrow">Spatial Memory · Beta</p>
+  <h1>Memory<br/><em>Palace</em></h1>
+  <p class="subtitle">
+    Upload a photograph of somewhere you loved.<br/>
+    Walk through it in three dimensions.
+  </p>
+
+  <div id="upload-zone">
+    <img id="upload-preview" src="" alt="" />
+    <svg class="upload-icon" fill="none" viewBox="0 0 24 24" stroke-width="1" xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+    </svg>
+    <p class="upload-label"><span>Choose a photo</span> or drag it here</p>
+    <p class="upload-overlay-label">↑ Change photo</p>
+    <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" />
+  </div>
+
+<button id="submit-btn" disabled>Enter the memory →</button>
+
+</div>
+
+<!-- ── PROCESSING ── -->
+
+<div id="processing">
+  <div class="processing-image-wrap">
+    <img id="processing-img" src="" alt="" />
+  </div>
+  <div class="processing-log" id="proc-log">
+    <div id="log-1">Analysing scene geometry…</div>
+    <div id="log-2" style="opacity:0.3">Regressing gaussian parameters…</div>
+    <div id="log-3" style="opacity:0.3">Initialising spatial field…</div>
+    <div id="log-4" style="opacity:0.3">Preparing your memory…</div>
+  </div>
+</div>
+
+<!-- ── VIEWER ── -->
+
+<div id="viewer">
+  <canvas id="splat-canvas"></canvas>
+</div>
+
+<!-- ── VIEWER HUD ── -->
+
+<div id="viewer-title">
+  <p class="vt-eyebrow">Memory Palace</p>
+  <p class="vt-name" id="viewer-filename"></p>
+</div>
+
+<div id="audio-indicator">
+  <div class="audio-bars" id="audio-bars">
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+  </div>
+  <span class="audio-label" id="audio-label">Ambient</span>
+</div>
+
+<div id="hud">
+  <span class="hud-label">Drag to explore · Scroll to move</span>
+  <div class="hud-divider"></div>
+  <button id="hud-btn" onclick="shareMemory()">Share memory</button>
+  <div class="hud-divider"></div>
+  <button id="hud-btn" onclick="resetToLanding()" style="color:var(--muted)">← New photo</button>
+</div>
+
+<div id="share-toast">Link copied to clipboard</div>
+<div id="error-banner" id="error-banner"></div>
+
+<!-- ── THREE.JS via ES Modules (r168+) ── -->
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+let uploadedFile = null;
+let audioCtx = null;
+let ambientSource = null;
+let audioMuted = false;
+
+const API_BASE = 'http://localhost:8000'; // swap to your deployed backend URL
+
+// ─────────────────────────────────────────────
+//  UPLOAD ZONE
+// ─────────────────────────────────────────────
+const zone      = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+const preview   = document.getElementById('upload-preview');
+const submitBtn = document.getElementById('submit-btn');
+
+zone.addEventListener('click', () => fileInput.click());
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) setFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+
+function setFile(f) {
+  uploadedFile = f;
+  const url = URL.createObjectURL(f);
+  preview.src = url;
+  preview.classList.add('visible');
+  zone.classList.add('has-image');
+  submitBtn.disabled = false;
+
+  // set viewer filename
+  const name = f.name.replace(/\.[^.]+$/, '');
+  document.getElementById('viewer-filename').textContent = name;
+}
+
+// ─────────────────────────────────────────────
+//  SUBMIT → BACKEND
+// ─────────────────────────────────────────────
+submitBtn.addEventListener('click', async () => {
+  if (!uploadedFile) return;
+  showProcessing();
+
+  const fd = new FormData();
+  fd.append('image', uploadedFile);
+
+  try {
+    animateLog();
+
+    const res = await fetch(`${API_BASE}/process`, {
+      method: 'POST',
+      body: fd
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(err.detail || 'Server error');
+    }
+
+    // Response is the .ply binary
+    const blob = await res.blob();
+    const plyUrl = URL.createObjectURL(blob);
+
+    showViewer(plyUrl);
+
+  } catch (err) {
+    showError(err.message);
+    showLanding();
+  }
+});
+
+// ─────────────────────────────────────────────
+//  SCREEN TRANSITIONS
+// ─────────────────────────────────────────────
+function showProcessing() {
+  document.getElementById('landing').classList.add('hidden');
+  document.getElementById('processing-img').src = URL.createObjectURL(uploadedFile);
+  const proc = document.getElementById('processing');
+  proc.classList.add('visible');
+}
+
+function showLanding() {
+  document.getElementById('processing').classList.remove('visible');
+  document.getElementById('landing').classList.remove('hidden');
+}
+
+function showViewer(plyUrl) {
+  document.getElementById('processing').classList.remove('visible');
+  const viewer = document.getElementById('viewer');
+  viewer.classList.add('visible');
+  document.getElementById('viewer-title').classList.add('visible');
+  document.getElementById('hud').classList.add('visible');
+  document.getElementById('audio-indicator').classList.add('visible');
+
+  initSplatViewer(plyUrl);
+  initAmbientAudio();
+}
+
+function resetToLanding() {
+  document.getElementById('viewer').classList.remove('visible');
+  document.getElementById('viewer-title').classList.remove('visible');
+  document.getElementById('hud').classList.remove('visible');
+  document.getElementById('audio-indicator').classList.remove('visible');
+  document.getElementById('landing').classList.remove('hidden');
+  stopAudio();
+  uploadedFile = null;
+  preview.classList.remove('visible');
+  zone.classList.remove('has-image');
+  submitBtn.disabled = true;
+}
+
+// ─────────────────────────────────────────────
+//  LOG ANIMATION
+// ─────────────────────────────────────────────
+function animateLog() {
+  const logs = ['log-1','log-2','log-3','log-4'];
+  logs.forEach((id, i) => {
+    setTimeout(() => {
+      logs.forEach(l => document.getElementById(l).classList.remove('active'));
+      const el = document.getElementById(id);
+      el.style.opacity = '1';
+      el.classList.add('active');
+    }, i * 2200);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  SPLAT VIEWER (Three.js point cloud fallback)
+//  In production, swap this for @playcanvas/splat
+//  or antimatter15/splat for true Gaussian rendering.
+// ─────────────────────────────────────────────
+function initSplatViewer(plyUrl) {
+  const canvas = document.getElementById('splat-canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer.setClearColor(0x0d0b09, 1);
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.01, 100);
+  camera.position.set(0, 0, 3);
+
+  // Ambient light
+  scene.add(new THREE.AmbientLight(0xc8853a, 0.3));
+
+  // Load PLY as point cloud
+  loadPLY(plyUrl).then(geometry => {
+    const mat = new THREE.PointsMaterial({
+      size: 0.006,
+      vertexColors: true,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.92,
+    });
+    const points = new THREE.Points(geometry, mat);
+    scene.add(points);
+
+    // Center
+    geometry.computeBoundingBox();
+    const center = new THREE.Vector3();
+    geometry.boundingBox.getCenter(center);
+    points.position.sub(center);
+  });
+
+  // ── orbit controls (manual) ──
+  let isDown = false, lastX = 0, lastY = 0;
+  let rotX = 0, rotY = 0;
+  let targetRotX = 0, targetRotY = 0;
+  let zoom = 3;
+
+  canvas.addEventListener('pointerdown', e => { isDown = true; lastX = e.clientX; lastY = e.clientY; });
+  canvas.addEventListener('pointerup',   () => isDown = false);
+  canvas.addEventListener('pointermove', e => {
+    if (!isDown) return;
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    targetRotY += dx * 0.005;
+    targetRotX += dy * 0.005;
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  canvas.addEventListener('wheel', e => {
+    zoom = Math.max(0.5, Math.min(8, zoom + e.deltaY * 0.005));
+  });
+
+  // touch
+  let lastTouchDist = null;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) { isDown = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
+    if (e.touches.length === 2) lastTouchDist = touchDist(e);
+  });
+  canvas.addEventListener('touchend', () => { isDown = false; lastTouchDist = null; });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && isDown) {
+      targetRotY += (e.touches[0].clientX - lastX) * 0.005;
+      targetRotX += (e.touches[0].clientY - lastY) * 0.005;
+      lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+    }
+    if (e.touches.length === 2) {
+      const d = touchDist(e);
+      if (lastTouchDist) zoom = Math.max(0.5, Math.min(8, zoom - (d - lastTouchDist) * 0.01));
+      lastTouchDist = d;
+    }
+  }, { passive: false });
+
+  function touchDist(e) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  // ── render loop ──
+  const pivot = new THREE.Group();
+  scene.add(pivot);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    rotX += (targetRotX - rotX) * 0.08;
+    rotY += (targetRotY - rotY) * 0.08;
+    pivot.rotation.x = rotX;
+    pivot.rotation.y = rotY;
+    camera.position.z += (zoom - camera.position.z) * 0.08;
+
+    // gentle auto-rotate when idle
+    targetRotY += 0.0008;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    camera.aspect = canvas.clientWidth / canvas.clientHeight;
+    camera.updateProjectionMatrix();
+  });
+}
+
+// ─────────────────────────────────────────────
+//  PLY PARSER (binary + ASCII)
+// ─────────────────────────────────────────────
+async function loadPLY(url) {
+  const res  = await fetch(url);
+  const buf  = await res.arrayBuffer();
+  const text = new TextDecoder().decode(new Uint8Array(buf, 0, 1024));
+
+  // parse header
+  const headerEnd  = text.indexOf('end_header') + 'end_header'.length + 1;
+  const headerText = text.slice(0, headerEnd);
+
+  const vertexMatch = headerText.match(/element vertex (\d+)/);
+  const numVerts    = vertexMatch ? parseInt(vertexMatch[1]) : 0;
+
+  const isBinary  = headerText.includes('binary_little_endian');
+  const hasColor  = headerText.includes('property uchar red');
+  const hasFColor = headerText.includes('property float red') || headerText.includes('property float f_dc_0');
+
+  const props = [];
+  for (const line of headerText.split('\n')) {
+    if (line.startsWith('property ')) {
+      const parts = line.trim().split(' ');
+      props.push({ type: parts[1], name: parts[2] });
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(numVerts * 3);
+  const colors    = new Float32Array(numVerts * 3);
+
+  if (isBinary) {
+    // calculate stride
+    const typeBytes = { char:1, uchar:1, short:2, ushort:2, int:4, uint:4, float:4, double:8 };
+    const stride = props.reduce((acc, p) => acc + (typeBytes[p.type] || 4), 0);
+
+    const dataView = new DataView(buf, headerEnd);
+    const xIdx  = props.findIndex(p => p.name === 'x');
+    const yIdx  = props.findIndex(p => p.name === 'y');
+    const zIdx  = props.findIndex(p => p.name === 'z');
+    const rIdx  = props.findIndex(p => p.name === 'red'   || p.name === 'f_dc_0');
+    const gIdx  = props.findIndex(p => p.name === 'green' || p.name === 'f_dc_1');
+    const bIdx  = props.findIndex(p => p.name === 'blue'  || p.name === 'f_dc_2');
+
+    function offsetOf(idx) {
+      let o = 0;
+      for (let i = 0; i < idx; i++) o += typeBytes[props[i].type] || 4;
+      return o;
+    }
+
+    const xOff = offsetOf(xIdx), yOff = offsetOf(yIdx), zOff = offsetOf(zIdx);
+    const rOff = rIdx >= 0 ? offsetOf(rIdx) : -1;
+    const gOff = gIdx >= 0 ? offsetOf(gIdx) : -1;
+    const bOff = bIdx >= 0 ? offsetOf(bIdx) : -1;
+
+    for (let i = 0; i < numVerts; i++) {
+      const base = i * stride;
+      positions[i*3]   = dataView.getFloat32(base + xOff, true);
+      positions[i*3+1] = dataView.getFloat32(base + yOff, true);
+      positions[i*3+2] = dataView.getFloat32(base + zOff, true);
+
+      if (rOff >= 0) {
+        if (hasColor) {
+          colors[i*3]   = dataView.getUint8(base + rOff) / 255;
+          colors[i*3+1] = dataView.getUint8(base + gOff) / 255;
+          colors[i*3+2] = dataView.getUint8(base + bOff) / 255;
+        } else {
+          // SH dc coefficients → sigmoid approximation
+          const sigmoid = v => 1 / (1 + Math.exp(-v));
+          colors[i*3]   = sigmoid(dataView.getFloat32(base + rOff, true));
+          colors[i*3+1] = sigmoid(dataView.getFloat32(base + gOff, true));
+          colors[i*3+2] = sigmoid(dataView.getFloat32(base + bOff, true));
+        }
+      } else {
+        // warm default
+        colors[i*3] = 0.78; colors[i*3+1] = 0.68; colors[i*3+2] = 0.54;
+      }
+    }
+  }
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+  return geometry;
+}
+
+// ─────────────────────────────────────────────
+//  AMBIENT AUDIO (Web Audio API — generative)
+// ─────────────────────────────────────────────
+function initAmbientAudio() {
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    masterGain.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + 4);
+    masterGain.connect(audioCtx.destination);
+
+    // layered drones — memory-like atmosphere
+    const freqs = [55, 82.4, 110, 164.8, 220];
+    freqs.forEach((freq, i) => {
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filt = audioCtx.createBiquadFilter();
+
+      osc.type = i % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.value = freq;
+
+      // slow LFO on gain for breathing effect
+      const lfo = audioCtx.createOscillator();
+      const lfoGain = audioCtx.createGain();
+      lfo.frequency.value = 0.05 + i * 0.02;
+      lfoGain.gain.value = 0.03;
+      lfo.connect(lfoGain);
+      lfoGain.connect(gain.gain);
+      lfo.start();
+
+      gain.gain.value = 0.06 - i * 0.008;
+      filt.type = 'lowpass';
+      filt.frequency.value = 400 + i * 80;
+
+      osc.connect(filt);
+      filt.connect(gain);
+      gain.connect(masterGain);
+      osc.start();
+    });
+
+    // subtle noise layer
+    const bufSize = audioCtx.sampleRate * 2;
+    const noiseBuffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.012;
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.loop = true;
+    const noiseFilter = audioCtx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 200;
+    noiseFilter.Q.value = 0.5;
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(masterGain);
+    noiseSource.start();
+
+    document.getElementById('audio-indicator').addEventListener('click', toggleAudio);
+
+  } catch(e) { console.warn('Audio not available', e); }
+}
+
+function toggleAudio() {
+  if (!audioCtx) return;
+  audioMuted = !audioMuted;
+  if (audioMuted) {
+    audioCtx.suspend();
+    document.getElementById('audio-bars').classList.add('paused');
+    document.getElementById('audio-label').textContent = 'Muted';
+  } else {
+    audioCtx.resume();
+    document.getElementById('audio-bars').classList.remove('paused');
+    document.getElementById('audio-label').textContent = 'Ambient';
+  }
+}
+
+function stopAudio() {
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+}
+
+// ─────────────────────────────────────────────
+//  SHARE
+// ─────────────────────────────────────────────
+window.shareMemory = shareMemory;
+window.resetToLanding = resetToLanding;
+
+function shareMemory() {
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    const toast = document.getElementById('share-toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  ERROR
+// ─────────────────────────────────────────────
+function showError(msg) {
+  const banner = document.getElementById('error-banner');
+  banner.textContent = msg;
+  banner.classList.add('show');
+  setTimeout(() => banner.classList.remove('show'), 5000);
+}
+</script>
+
+</body>
+</html>
